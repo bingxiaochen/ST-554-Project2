@@ -134,3 +134,79 @@ class SparkDataCheck:
     self.df = self.df.withColumn(new_col, result_col)
 
     return self
+
+
+    # Report the min and max of a given numeric column
+    # allow one optional grouping var
+    def min_max(self, col_name=None, group_by=None):
+    """
+    Report min and max for numeric columns.
+
+    """
+
+    # check column type
+    dict = dict(self.df.dtypes)
+    numeric_types = {"int", "bigint", "double", "float", "longint", "integer"}
+
+    # If a numeric column in supplied, then compute the min and max
+    # for this column, grouped if appropriate
+    if col_name is not None:
+
+        # Check if the column is numeric
+        if dict[col_name] not in numeric_types:
+            print(f"Column '{col_name}' is not numeric. Please give a numeric column.")
+            return None
+
+        if group_by is not None:
+            result = (
+                self.df
+                .groupBy(group_by)
+                .agg(
+                    F.min(col_name).alias(f"{col_name}_min"),
+                    F.max(col_name).alias(f"{col_name}_max")
+                )
+            )
+        else:
+            result = (
+                self.df
+                .agg(
+                    F.min(col_name).alias(f"{col_name}_min"),
+                    F.max(col_name).alias(f"{col_name}_max")
+                )
+            )
+
+        return result
+
+
+    # If no column is supplided, return min and max for all numeric columns
+    if col_name is None:
+
+        numeric_cols = [c for c, t in dict.items() if t in numeric_types]
+
+        # if a grouping var is provided:
+        if group_by:
+            dfs = []
+            for col in numeric_cols:
+                temp = (
+                    self.df
+                    .groupBy(group_by)
+                    .agg(
+                        F.min(col).alias(f"{col}_min"),
+                        F.max(col).alias(f"{col}_max")
+                    )
+                )
+                dfs.append(temp)
+
+            # Merge all results
+            result = reduce(lambda df1, df2: df1.join(df2, on=group_by), dfs)
+
+        else:
+            # if no grouping var provided, just report the min and max
+            agg_report = []
+            for col in numeric_cols:
+                agg_report.append(F.min(col).alias(f"{col}_min"))
+                agg_report.append(F.max(col).alias(f"{col}_max"))
+
+            result = self.df.agg(*agg_report)
+
+        return result
