@@ -83,3 +83,54 @@ class SparkDataCheck:
         self.df = self.df.withColumn(new_col, result_col)
 
         return self
+
+    # Check if each value in a string column falls within specified levels
+    def within_levels(self, col_name, levels):
+    """
+    Check whether values in a string column fall within a set of levels.
+
+    """
+
+    # get dtypes
+    dict = dict(self.df.dtypes)
+
+    if dict[col_name] != "string":
+        print(f"Column '{col_name}' is not a string column.")
+        return self
+
+    # Default new column name
+    new_col = f"{col_name}_in_levels"
+
+    col = F.col(col_name)
+
+    # check if the values are in levels
+    in_level = col.isin(levels)
+
+    # For any NULL, return NULL
+    result_col = F.when(col.isNull(), None).otherwise(in_level)
+
+    # Append column
+    self.df = self.df.withColumn(new_col, result_col)
+
+    return self
+
+
+    # Check if each value in a given column is missing
+    def is_missing(self, col_name):
+    """
+    Check whether values in a column is missing.
+
+    """
+
+    # Default new column name
+    new_col = f"{col_name}_is_missing"
+
+    col = F.col(col_name)
+
+    # check if the values is missing
+    result_col = col.isNull()
+
+    # Append column
+    self.df = self.df.withColumn(new_col, result_col)
+
+    return self
