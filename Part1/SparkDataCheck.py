@@ -13,7 +13,7 @@ class SparkDataCheck:
 
     # create spark df using csv file
     @classmethod
-    def from_csv(class, spark, path):
+    def from_csv(cls, spark, path):
         """
         Create an instance by reading a CSV file
 
@@ -24,17 +24,17 @@ class SparkDataCheck:
             header=True,
             inferSchema=True
         )
-        return class(df)
+        return cls(df)
 
     # create spark df from a pandas dataframe
     @classmethod
-    def from_pd(class, spark, df):
+    def from_pd(cls, spark, df):
         """
         Create an instance from a pandas DataFrame
 
         """
         df = spark.createDataFrame(pandas_df)
-        return class(df)
+        return cls(df)
 
     # create a method that check if each value is within the specified range
     def within_range(self, col_name, lower, upper):
@@ -53,13 +53,13 @@ class SparkDataCheck:
 
         # Check column type
         # create a dict of column and its type
-        dict = dict(self.df.dtypes)
+        col_dict = dict(self.df.dtypes)
 
         # create a dictionary of numeric types
         numeric_types = {"int", "bigint", "double", "float", "longint", "integer"}
 
         # check if the column type is one of the numeric types
-        if dict[col_name] not in numeric_types:
+        if col_dict[col_name] not in numeric_types:
             print(f"Column '{col_name}' is not numeric. ")
             return self
 
@@ -86,127 +86,172 @@ class SparkDataCheck:
 
     # Check if each value in a string column falls within specified levels
     def within_levels(self, col_name, levels):
-    """
-    Check whether values in a string column fall within a set of levels.
+        """
+        Check whether values in a string column fall within a set of levels.
 
-    """
+        """
 
-    # get dtypes
-    dict = dict(self.df.dtypes)
+        # get dtypes
+        col_dict = dict(self.df.dtypes)
 
-    if dict[col_name] != "string":
-        print(f"Column '{col_name}' is not a string column.")
+        if col_dict[col_name] != "string":
+            print(f"Column '{col_name}' is not a string column.")
+            return self
+
+        # Default new column name
+        new_col = f"{col_name}_in_levels"
+
+        col = F.col(col_name)
+
+        # check if the values are in levels
+        in_level = col.isin(levels)
+
+        # For any NULL, return NULL
+        result_col = F.when(col.isNull(), None).otherwise(in_level)
+
+        # Append column
+        self.df = self.df.withColumn(new_col, result_col)
+
         return self
-
-    # Default new column name
-    new_col = f"{col_name}_in_levels"
-
-    col = F.col(col_name)
-
-    # check if the values are in levels
-    in_level = col.isin(levels)
-
-    # For any NULL, return NULL
-    result_col = F.when(col.isNull(), None).otherwise(in_level)
-
-    # Append column
-    self.df = self.df.withColumn(new_col, result_col)
-
-    return self
 
 
     # Check if each value in a given column is missing
     def is_missing(self, col_name):
-    """
-    Check whether values in a column is missing.
+        """
+        Check whether values in a column is missing.
 
-    """
+        """
 
-    # Default new column name
-    new_col = f"{col_name}_is_missing"
+        # Default new column name
+        new_col = f"{col_name}_is_missing"
 
-    col = F.col(col_name)
+        col = F.col(col_name)
 
-    # check if the values is missing
-    result_col = col.isNull()
+        # check if the values is missing
+        result_col = col.isNull()
 
-    # Append column
-    self.df = self.df.withColumn(new_col, result_col)
+        # Append column
+        self.df = self.df.withColumn(new_col, result_col)
 
-    return self
+        return self
 
 
     # Report the min and max of a given numeric column
     # allow one optional grouping var
     def min_max(self, col_name=None, group_by=None):
-    """
-    Report min and max for numeric columns.
+        """
+        Report min and max for numeric columns.
 
-    """
+        """
 
-    # check column type
-    dict = dict(self.df.dtypes)
-    numeric_types = {"int", "bigint", "double", "float", "longint", "integer"}
+        # check column type
+        col_dict = dict(self.df.dtypes)
+        numeric_types = {"int", "bigint", "double", "float", "longint", "integer"}
 
-    # If a numeric column in supplied, then compute the min and max
-    # for this column, grouped if appropriate
-    if col_name is not None:
+        # If a numeric column in supplied, then compute the min and max
+        # for this column, grouped if appropriate
+        if col_name is not None:
 
-        # Check if the column is numeric
-        if dict[col_name] not in numeric_types:
-            print(f"Column '{col_name}' is not numeric. Please give a numeric column.")
-            return None
+            # Check if the column is numeric
+            if col_dict[col_name] not in numeric_types:
+                print(f"Column '{col_name}' is not numeric. Please give a numeric column.")
+                return None
 
-        if group_by is not None:
-            result = (
-                self.df
-                .groupBy(group_by)
-                .agg(
-                    F.min(col_name).alias(f"{col_name}_min"),
-                    F.max(col_name).alias(f"{col_name}_max")
-                )
-            )
-        else:
-            result = (
-                self.df
-                .agg(
-                    F.min(col_name).alias(f"{col_name}_min"),
-                    F.max(col_name).alias(f"{col_name}_max")
-                )
-            )
-
-        return result
-
-
-    # If no column is supplided, return min and max for all numeric columns
-    if col_name is None:
-
-        numeric_cols = [c for c, t in dict.items() if t in numeric_types]
-
-        # if a grouping var is provided:
-        if group_by:
-            dfs = []
-            for col in numeric_cols:
-                temp = (
+            if group_by is not None:
+                result = (
                     self.df
                     .groupBy(group_by)
                     .agg(
-                        F.min(col).alias(f"{col}_min"),
-                        F.max(col).alias(f"{col}_max")
+                        F.min(col_name).alias(f"{col_name}_min"),
+                        F.max(col_name).alias(f"{col_name}_max")
                     )
                 )
-                dfs.append(temp)
+            else:
+                result = (
+                    self.df
+                    .agg(
+                        F.min(col_name).alias(f"{col_name}_min"),
+                        F.max(col_name).alias(f"{col_name}_max")
+                    )
+                )
 
-            # Merge all results
-            result = reduce(lambda df1, df2: df1.join(df2, on=group_by), dfs)
+            return result
 
-        else:
-            # if no grouping var provided, just report the min and max
-            agg_report = []
-            for col in numeric_cols:
-                agg_report.append(F.min(col).alias(f"{col}_min"))
-                agg_report.append(F.max(col).alias(f"{col}_max"))
 
-            result = self.df.agg(*agg_report)
+        # If no column is supplided, return min and max for all numeric columns
+        if col_name is None:
+
+            numeric_cols = [c for c, t in dict.items() if t in numeric_types]
+
+            # if a grouping var is provided:
+            if group_by:
+                dfs = []
+                for col in numeric_cols:
+                    temp = (
+                        self.df
+                        .groupBy(group_by)
+                        .agg(
+                            F.min(col).alias(f"{col}_min"),
+                            F.max(col).alias(f"{col}_max")
+                        )
+                    )
+                    dfs.append(temp)
+
+                # Merge all results
+                result = reduce(lambda df1, df2: df1.join(df2, on=group_by), dfs)
+
+            else:
+                # if no grouping var provided, just report the min and max
+                agg_report = []
+                for col in numeric_cols:
+                    agg_report.append(F.min(col).alias(f"{col}_min"))
+                    agg_report.append(F.max(col).alias(f"{col}_max"))
+
+                result = self.df.agg(*agg_report)
+
+            return result
+
+
+    # Count the number of each levels for a given string var
+    def count_level(self, col_name1, col_name2=None):
+        """
+        Report the counts associated with one or two string columns
+
+        """
+
+        # First, need check column type
+        col_dict = dict(self.df.dtypes)
+
+        # if only one column is supplied:
+        # first check if it's string
+        if col_dict[col_name1] != "string":
+            print(f"Column '{col_name1}' is a numeric column. Please provide a string column!")
+            return None
+
+
+        # then, check col_name2 is None and count
+        if col_name2 is None:
+            result = (
+                self.df
+                .groupBy(col_name1)
+                .count()
+                .orderBy(col_name1)
+            )
+            return result
+
+        # if 2 columns are provided, we count for each column
+        if col_name2 is not None:
+
+            # check if col_name 2 is string
+            if col_dict[col_name2] != "string":
+                print(f"Column '{col_name2}' is a numeric column. Please provide a string column!")
+                return None
+
+            result = (
+                self.df
+                .groupBy(col_name1, col_name2)
+                .count()
+                .orderBy(col_name1, col_name2)
+            )
 
         return result
