@@ -33,7 +33,7 @@ class SparkDataCheck:
         Create an instance from a pandas DataFrame
 
         """
-        df = spark.createDataFrame(pandas_df)
+        df = spark.createDataFrame(df)
         return cls(df)
 
     # create a method that check if each value is within the specified range
@@ -66,7 +66,7 @@ class SparkDataCheck:
         # Create a new column to store the Boolean values
         new_col = f"{col_name}_in_range"
 
-        col = F.col(col_name)
+        col = F.col(f"`{col_name}`")
 
         # check if the column is in range
         if lower is not None and upper is not None:
@@ -77,7 +77,7 @@ class SparkDataCheck:
             in_range = col <= upper
 
         # For any NULL values, return NULL
-        result_col = F.when(col.isNull(), None).otherwise(in_range)
+        result_col = F.when(col.isNull(), F.lit(None)).otherwise(in_range)
 
         # Append column
         self.df = self.df.withColumn(new_col, result_col)
@@ -101,7 +101,7 @@ class SparkDataCheck:
         # Default new column name
         new_col = f"{col_name}_in_levels"
 
-        col = F.col(col_name)
+        col = F.col(f"`{col_name}`")
 
         # check if the values are in levels
         in_level = col.isin(levels)
@@ -157,21 +157,23 @@ class SparkDataCheck:
                 print(f"Column '{col_name}' is not numeric. Please give a numeric column.")
                 return None
 
+            col = F.col(f"`{col_name}`")
+
             if group_by is not None:
                 result = (
                     self.df
                     .groupBy(group_by)
                     .agg(
-                        F.min(col_name).alias(f"{col_name}_min"),
-                        F.max(col_name).alias(f"{col_name}_max")
+                        F.min(col).alias(f"{col_name}_min"),
+                        F.max(col).alias(f"{col_name}_max")
                     )
                 )
             else:
                 result = (
                     self.df
                     .agg(
-                        F.min(col_name).alias(f"{col_name}_min"),
-                        F.max(col_name).alias(f"{col_name}_max")
+                        F.min(col).alias(f"{col_name}_min"),
+                        F.max(col).alias(f"{col_name}_max")
                     )
                 )
 
@@ -181,18 +183,20 @@ class SparkDataCheck:
         # If no column is supplided, return min and max for all numeric columns
         if col_name is None:
 
-            numeric_cols = [c for c, t in dict.items() if t in numeric_types]
+            numeric_cols = [c for c, t in col_dict.items() if t in numeric_types]
+
 
             # if a grouping var is provided:
             if group_by:
                 dfs = []
-                for col in numeric_cols:
+                for c in numeric_cols:
+                    col = F.col(f"`{c}`")
                     temp = (
                         self.df
                         .groupBy(group_by)
                         .agg(
-                            F.min(col).alias(f"{col}_min"),
-                            F.max(col).alias(f"{col}_max")
+                            F.min(col).alias(f"{c}_min"),
+                            F.max(col).alias(f"{c}_max")
                         )
                     )
                     dfs.append(temp)
@@ -203,9 +207,9 @@ class SparkDataCheck:
             else:
                 # if no grouping var provided, just report the min and max
                 agg_report = []
-                for col in numeric_cols:
-                    agg_report.append(F.min(col).alias(f"{col}_min"))
-                    agg_report.append(F.max(col).alias(f"{col}_max"))
+                for c in numeric_cols:
+                    agg_report.append(F.min(F.col(f"`{c}`")).alias(f"{c}_min"))
+                    agg_report.append(F.max(F.col(f"`{c}`")).alias(f"{c}_max"))
 
                 result = self.df.agg(*agg_report)
 
