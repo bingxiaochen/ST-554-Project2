@@ -37,7 +37,7 @@ class SparkDataCheck:
         return cls(df)
 
     # create a method that check if each value is within the specified range
-    def within_range(self, col_name, lower, upper):
+    def within_range(self, col_name, lower = None, upper = None):
         """
         Create a method that checks if each value in a numeric column is within
         user defined limits and returns the dataframe with an appended column of
