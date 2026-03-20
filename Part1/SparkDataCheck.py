@@ -1,3 +1,7 @@
+# Bing Chen
+# ST 554 Project 2 Part 1
+# Creates class 
+
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from functools import reduce
